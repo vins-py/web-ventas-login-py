@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Inicio | Sistema de Ventas</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 0;
+        }
+
+        .contenedor {
+            max-width: 760px;
+            margin: 80px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 14px;
+            text-align: center;
+            box-shadow: 0 0 18px rgba(0,0,0,0.12);
+        }
+
+        h1 {
+            color: #1f4e78;
+            margin-bottom: 15px;
+        }
+
+        p {
+            color: #444;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        .botones {
+            margin-top: 30px;
+        }
+
+        a {
+            display: inline-block;
+            margin: 10px;
+            padding: 13px 22px;
+            background: #1f4e78;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+
+        a:hover {
+            background: #163957;
+        }
+
+        .secundario {
+            background: #2e7d32;
+        }
+
+        .secundario:hover {
+            background: #1b5e20;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="contenedor">
+        <h1>Sistema Web de Ventas</h1>
+
+        <p>
+            Aplicación web hecha con Python, Flask y SQLite.
+            Permite crear usuarios, iniciar sesión, registrar ventas,
+            consultar historial y descargar reportes Excel.
+        </p>
+
+        <div class="botones">
+            <a href="/login">Iniciar sesión</a>
+            <a class="secundario" href="/registro">Crear cuenta</a>
+        </div>
+    </div>
+</body>
+</html>

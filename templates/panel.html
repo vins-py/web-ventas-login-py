@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel | Sistema de Ventas</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+        }
+
+        .contenedor {
+            width: 94%;
+            max-width: 1180px;
+            margin: 35px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 14px;
+            box-shadow: 0 0 18px rgba(0,0,0,0.12);
+        }
+
+        h1 {
+            color: #1f4e78;
+            text-align: center;
+        }
+
+        h2 {
+            color: #1f4e78;
+            margin-top: 30px;
+        }
+
+        .usuario {
+            text-align: center;
+            color: #444;
+            margin-bottom: 20px;
+        }
+
+        .resumen {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+            margin-top: 25px;
+        }
+
+        .tarjeta {
+            background: #eef4fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #c8d8e6;
+        }
+
+        .tarjeta strong {
+            display: block;
+            font-size: 18px;
+            margin-top: 6px;
+            color: #1f4e78;
+        }
+
+        form {
+            margin-top: 25px;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        label {
+            font-weight: bold;
+            color: #333;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            border: 1px solid #aaa;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        button, .boton {
+            background: #1f4e78;
+            color: white;
+            border: none;
+            padding: 11px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        button:hover, .boton:hover {
+            background: #163957;
+        }
+
+        .boton-reporte {
+            background: #2e7d32;
+            margin-top: 20px;
+        }
+
+        .boton-reporte:hover {
+            background: #1b5e20;
+        }
+
+        .salir {
+            background: #555;
+            margin-left: 10px;
+        }
+
+        .salir:hover {
+            background: #333;
+        }
+
+        .eliminar {
+            background: #b00020;
+            padding: 7px 12px;
+            font-size: 13px;
+        }
+
+        .eliminar:hover {
+            background: #7a0016;
+        }
+
+        .mensaje {
+            background: #e0ffe4;
+            color: #006b16;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .error {
+            background: #ffe0e0;
+            color: #a00000;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 18px;
+        }
+
+        th {
+            background: #1f4e78;
+            color: white;
+            padding: 10px;
+        }
+
+        td {
+            border: 1px solid #ccc;
+            padding: 9px;
+            text-align: center;
+        }
+
+        tr:nth-child(even) {
+            background: #f2f6fa;
+        }
+
+        .acciones {
+            margin-top: 25px;
+            text-align: right;
+        }
+
+        @media (max-width: 900px) {
+            .resumen {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            form {
+                grid-template-columns: 1fr;
+            }
+
+            .acciones {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="contenedor">
+        <h1>Panel de ventas</h1>
+
+        <div class="usuario">
+            Usuario: <strong>{{ usuario[1] }}</strong> |
+            Correo: <strong>{{ usuario[2] }}</strong>
+        </div>
+
+        {% if mensaje %}
+            <div class="mensaje">{{ mensaje }}</div>
+        {% endif %}
+
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <div class="resumen">
+            <div class="tarjeta">
+                Ventas
+                <strong>{{ resumen.ventas_registradas }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Cantidad
+                <strong>{{ resumen.cantidad_total }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Subtotal
+                <strong>${{ "%.2f"|format(resumen.subtotal) }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                IVA
+                <strong>${{ "%.2f"|format(resumen.iva) }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Total
+                <strong>${{ "%.2f"|format(resumen.total) }}</strong>
+            </div>
+        </div>
+
+        <h2>Registrar venta</h2>
+
+        <form method="POST">
+            <div>
+                <label>Producto</label>
+                <input type="text" name="producto" placeholder="Ej. Aceite" required>
+            </div>
+
+            <div>
+                <label>Cantidad</label>
+                <input type="number" name="cantidad" min="1" required>
+            </div>
+
+            <div>
+                <label>Precio</label>
+                <input type="number" name="precio" min="0.01" step="0.01" required>
+            </div>
+
+            <div>
+                <button type="submit">Guardar venta</button>
+            </div>
+        </form>
+
+        <div class="acciones">
+            <a class="boton boton-reporte" href="/descargar-reporte">
+                Descargar reporte Excel
+            </a>
+
+            <a class="boton salir" href="/logout">
+                Cerrar sesión
+            </a>
+        </div>
+
+        <h2>Mis ventas registradas</h2>
+
+        {% if ventas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th>Precio</th>
+                        <th>Subtotal</th>
+                        <th>IVA</th>
+                        <th>Total</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for venta in ventas %}
+                        <tr>
+                            <td>{{ venta[0] }}</td>
+                            <td>{{ venta[1] }}</td>
+                            <td>{{ venta[2] }}</td>
+                            <td>{{ venta[3] }}</td>
+                            <td>{{ venta[4] }}</td>
+                            <td>${{ "%.2f"|format(venta[5]) }}</td>
+                            <td>${{ "%.2f"|format(venta[6]) }}</td>
+                            <td>${{ "%.2f"|format(venta[7]) }}</td>
+                            <td>${{ "%.2f"|format(venta[8]) }}</td>
+                            <td>
+                                <a class="boton eliminar" href="/eliminar/{{ venta[0] }}">
+                                    Eliminar
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No tienes ventas registradas todavía.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
