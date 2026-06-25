@@ -39,7 +39,7 @@
 
         .resumen {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(7, 1fr);
             gap: 14px;
             margin-top: 25px;
         }
@@ -97,6 +97,7 @@
             display: inline-block;
             text-align: center;
             margin-left: 8px;
+            margin-top: 8px;
         }
 
         .boton:hover {
@@ -109,6 +110,14 @@
 
         .boton-reporte:hover {
             background: #1b5e20;
+        }
+
+        .inventario {
+            background: #7a1f1f;
+        }
+
+        .inventario:hover {
+            background: #561313;
         }
 
         .salir {
@@ -128,7 +137,15 @@
             text-align: center;
         }
 
-        @media (max-width: 900px) {
+        .error {
+            background: #ffe0e0;
+            color: #a00000;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 1000px) {
             .resumen {
                 grid-template-columns: 1fr 1fr;
             }
@@ -153,14 +170,28 @@
             Correo: <strong>{{ usuario[2] }}</strong>
         </div>
 
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+
         <div class="mensaje-admin">
-            En este panel se pueden ver los usuarios registrados y todas las ventas del sistema.
+            En este panel se pueden ver usuarios, inventario y ventas generales del sistema.
         </div>
 
         <div class="resumen">
             <div class="tarjeta">
                 Usuarios
                 <strong>{{ resumen_admin.usuarios }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Productos
+                <strong>{{ resumen_admin.productos }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Stock total
+                <strong>{{ resumen_admin.stock }}</strong>
             </div>
 
             <div class="tarjeta">
@@ -185,6 +216,10 @@
         </div>
 
         <div class="acciones">
+            <a class="boton inventario" href="/inventario">
+                Administrar inventario
+            </a>
+
             <a class="boton boton-reporte" href="/descargar-reporte-general">
                 Descargar reporte general Excel
             </a>

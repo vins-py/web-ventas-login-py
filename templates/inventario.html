@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Inventario | Sistema de Ventas</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+        }
+
+        .contenedor {
+            width: 94%;
+            max-width: 1100px;
+            margin: 35px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 14px;
+            box-shadow: 0 0 18px rgba(0,0,0,0.12);
+        }
+
+        h1 {
+            color: #7a1f1f;
+            text-align: center;
+        }
+
+        h2 {
+            color: #1f4e78;
+            margin-top: 30px;
+        }
+
+        .usuario {
+            text-align: center;
+            color: #444;
+            margin-bottom: 22px;
+        }
+
+        form {
+            margin-top: 25px;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        label {
+            font-weight: bold;
+            color: #333;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            border: 1px solid #aaa;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        button, .boton {
+            background: #1f4e78;
+            color: white;
+            border: none;
+            padding: 11px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        button:hover, .boton:hover {
+            background: #163957;
+        }
+
+        .admin {
+            background: #7a1f1f;
+        }
+
+        .admin:hover {
+            background: #561313;
+        }
+
+        .salir {
+            background: #555;
+        }
+
+        .salir:hover {
+            background: #333;
+        }
+
+        .eliminar {
+            background: #b00020;
+            padding: 7px 12px;
+            font-size: 13px;
+        }
+
+        .eliminar:hover {
+            background: #7a0016;
+        }
+
+        .mensaje {
+            background: #e0ffe4;
+            color: #006b16;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .error {
+            background: #ffe0e0;
+            color: #a00000;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .aviso {
+            background: #fff4cc;
+            color: #6b4d00;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .acciones {
+            margin-top: 25px;
+            text-align: right;
+        }
+
+        .acciones a {
+            margin-left: 8px;
+            margin-top: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 18px;
+        }
+
+        th {
+            background: #1f4e78;
+            color: white;
+            padding: 10px;
+        }
+
+        td {
+            border: 1px solid #ccc;
+            padding: 9px;
+            text-align: center;
+        }
+
+        tr:nth-child(even) {
+            background: #f2f6fa;
+        }
+
+        .bajo-stock {
+            background: #fff4cc;
+            color: #6b4d00;
+            font-weight: bold;
+        }
+
+        .sin-stock {
+            background: #ffe0e0;
+            color: #a00000;
+            font-weight: bold;
+        }
+
+        @media (max-width: 900px) {
+            form {
+                grid-template-columns: 1fr;
+            }
+
+            .acciones {
+                text-align: center;
+            }
+
+            table {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="contenedor">
+        <h1>Inventario</h1>
+
+        <div class="usuario">
+            Administrador: <strong>{{ usuario[1] }}</strong> |
+            Correo: <strong>{{ usuario[2] }}</strong>
+        </div>
+
+        {% if mensaje %}
+            <div class="mensaje">{{ mensaje }}</div>
+        {% endif %}
+
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <div class="aviso">
+            Si registras un producto que ya existe, el sistema actualizará el precio y sumará el stock nuevo.
+        </div>
+
+        <h2>Registrar producto</h2>
+
+        <form method="POST">
+            <div>
+                <label>Nombre del producto</label>
+                <input type="text" name="nombre" placeholder="Ej. Aceite 5W30" required>
+            </div>
+
+            <div>
+                <label>Precio</label>
+                <input type="number" name="precio" min="0.01" step="0.01" required>
+            </div>
+
+            <div>
+                <label>Stock</label>
+                <input type="number" name="stock" min="0" required>
+            </div>
+
+            <div>
+                <button type="submit">Guardar producto</button>
+            </div>
+        </form>
+
+        <div class="acciones">
+            <a class="boton admin" href="/admin">
+                Volver al panel admin
+            </a>
+
+            <a class="boton" href="/panel">
+                Ir a ventas
+            </a>
+
+            <a class="boton salir" href="/logout">
+                Cerrar sesión
+            </a>
+        </div>
+
+        <h2>Productos registrados</h2>
+
+        {% if productos %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Producto</th>
+                        <th>Precio</th>
+                        <th>Stock</th>
+                        <th>Fecha de registro</th>
+                        <th>Estado</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for producto in productos %}
+                        <tr>
+                            <td>{{ producto[0] }}</td>
+                            <td>{{ producto[1] }}</td>
+                            <td>${{ "%.2f"|format(producto[2]) }}</td>
+                            <td>{{ producto[3] }}</td>
+                            <td>{{ producto[4] }}</td>
+
+                            {% if producto[3] == 0 %}
+                                <td class="sin-stock">Sin stock</td>
+                            {% elif producto[3] <= 3 %}
+                                <td class="bajo-stock">Stock bajo</td>
+                            {% else %}
+                                <td>Disponible</td>
+                            {% endif %}
+
+                            <td>
+                                <a class="boton eliminar" href="/eliminar-producto/{{ producto[0] }}">
+                                    Eliminar
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No hay productos registrados todavía.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

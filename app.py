@@ -39,6 +39,16 @@ def crear_tablas():
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS productos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            precio REAL NOT NULL,
+            stock INTEGER NOT NULL,
+            fecha_registro TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS ventas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             usuario_id INTEGER NOT NULL,
@@ -134,41 +144,170 @@ def buscar_usuario_por_id(usuario_id):
     return usuario
 
 
-def registrar_venta(usuario_id, producto, cantidad, precio):
-    producto = producto.strip().title()
-    cantidad = int(cantidad)
+def obtener_productos_admin():
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        SELECT id, nombre, precio, stock, fecha_registro
+        FROM productos
+        ORDER BY nombre
+    """)
+
+    productos = cursor.fetchall()
+    conexion.close()
+
+    return productos
+
+
+def obtener_productos_disponibles():
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        SELECT id, nombre, precio, stock
+        FROM productos
+        WHERE stock > 0
+        ORDER BY nombre
+    """)
+
+    productos = cursor.fetchall()
+    conexion.close()
+
+    return productos
+
+
+def agregar_producto_admin(nombre, precio, stock):
+    nombre = nombre.strip().title()
     precio = float(precio)
+    stock = int(stock)
 
-    ahora = datetime.now()
-    fecha = ahora.strftime("%Y-%m-%d")
-    hora = ahora.strftime("%H:%M:%S")
+    if not nombre:
+        raise ValueError("Escribe el nombre del producto.")
 
-    subtotal = cantidad * precio
-    iva = subtotal * 0.16
-    total = subtotal + iva
+    if precio <= 0:
+        raise ValueError("El precio debe ser mayor a 0.")
+
+    if stock < 0:
+        raise ValueError("El stock no puede ser negativo.")
 
     conexion = conectar()
     cursor = conexion.cursor()
 
     cursor.execute("""
-        INSERT INTO ventas (
-            usuario_id, fecha, hora, producto, cantidad, precio, subtotal, iva, total
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        usuario_id,
-        fecha,
-        hora,
-        producto,
-        cantidad,
-        precio,
-        subtotal,
-        iva,
-        total
-    ))
+        SELECT id, stock
+        FROM productos
+        WHERE nombre = ?
+    """, (nombre,))
+
+    producto_existente = cursor.fetchone()
+
+    if producto_existente:
+        cursor.execute("""
+            UPDATE productos
+            SET precio = ?, stock = stock + ?
+            WHERE nombre = ?
+        """, (precio, stock, nombre))
+
+        mensaje = "Producto actualizado correctamente. Se sumó el stock nuevo."
+    else:
+        fecha_registro = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute("""
+            INSERT INTO productos (nombre, precio, stock, fecha_registro)
+            VALUES (?, ?, ?, ?)
+        """, (nombre, precio, stock, fecha_registro))
+
+        mensaje = "Producto registrado correctamente."
 
     conexion.commit()
     conexion.close()
+
+    return mensaje
+
+
+def eliminar_producto_admin(producto_id):
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        DELETE FROM productos
+        WHERE id = ?
+    """, (producto_id,))
+
+    conexion.commit()
+    conexion.close()
+
+
+def registrar_venta(usuario_id, producto_id, cantidad):
+    producto_id = int(producto_id)
+    cantidad = int(cantidad)
+
+    if cantidad <= 0:
+        raise ValueError("La cantidad debe ser mayor a 0.")
+
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT id, nombre, precio, stock
+            FROM productos
+            WHERE id = ?
+        """, (producto_id,))
+
+        producto = cursor.fetchone()
+
+        if not producto:
+            raise ValueError("Producto no encontrado.")
+
+        id_producto, nombre_producto, precio, stock = producto
+
+        if stock <= 0:
+            raise ValueError("Este producto no tiene stock disponible.")
+
+        if cantidad > stock:
+            raise ValueError(f"No hay suficiente stock. Disponible: {stock}")
+
+        ahora = datetime.now()
+        fecha = ahora.strftime("%Y-%m-%d")
+        hora = ahora.strftime("%H:%M:%S")
+
+        subtotal = cantidad * precio
+        iva = subtotal * 0.16
+        total = subtotal + iva
+
+        cursor.execute("""
+            INSERT INTO ventas (
+                usuario_id, fecha, hora, producto, cantidad, precio, subtotal, iva, total
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            usuario_id,
+            fecha,
+            hora,
+            nombre_producto,
+            cantidad,
+            precio,
+            subtotal,
+            iva,
+            total
+        ))
+
+        cursor.execute("""
+            UPDATE productos
+            SET stock = stock - ?
+            WHERE id = ?
+        """, (cantidad, producto_id))
+
+        conexion.commit()
+
+    except Exception:
+        conexion.rollback()
+        raise
+
+    finally:
+        conexion.close()
 
 
 def obtener_ventas_usuario(usuario_id):
@@ -222,9 +361,26 @@ def eliminar_venta(usuario_id, venta_id):
     cursor = conexion.cursor()
 
     cursor.execute("""
-        DELETE FROM ventas
+        SELECT producto, cantidad
+        FROM ventas
         WHERE id = ? AND usuario_id = ?
     """, (venta_id, usuario_id))
+
+    venta = cursor.fetchone()
+
+    if venta:
+        producto, cantidad = venta
+
+        cursor.execute("""
+            DELETE FROM ventas
+            WHERE id = ? AND usuario_id = ?
+        """, (venta_id, usuario_id))
+
+        cursor.execute("""
+            UPDATE productos
+            SET stock = stock + ?
+            WHERE nombre = ?
+        """, (cantidad, producto))
 
     conexion.commit()
     conexion.close()
@@ -282,6 +438,9 @@ def obtener_resumen_admin():
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     total_usuarios = cursor.fetchone()[0]
 
+    cursor.execute("SELECT COUNT(*), COALESCE(SUM(stock), 0) FROM productos")
+    total_productos, stock_total = cursor.fetchone()
+
     cursor.execute("""
         SELECT
             COUNT(*),
@@ -298,6 +457,8 @@ def obtener_resumen_admin():
 
     return {
         "usuarios": total_usuarios,
+        "productos": total_productos,
+        "stock": stock_total,
         "ventas": total_ventas,
         "cantidad": cantidad,
         "iva": iva,
@@ -382,6 +543,12 @@ def crear_reporte_general_excel():
         ORDER BY id
     """, conexion)
 
+    productos = pd.read_sql_query("""
+        SELECT id, nombre, precio, stock, fecha_registro
+        FROM productos
+        ORDER BY nombre
+    """, conexion)
+
     ventas = pd.read_sql_query("""
         SELECT
             ventas.id,
@@ -404,11 +571,58 @@ def crear_reporte_general_excel():
     conexion.close()
 
     if ventas.empty:
-        raise ValueError("No hay ventas registradas para generar el reporte general.")
+        ventas_por_usuario = pd.DataFrame(columns=["usuario", "correo", "cantidad", "subtotal", "iva", "total"])
+        ventas_por_producto = pd.DataFrame(columns=["producto", "cantidad", "subtotal", "iva", "total"])
+        ventas_por_dia = pd.DataFrame(columns=["fecha", "cantidad", "subtotal", "iva", "total"])
+
+        cantidad_total = 0
+        subtotal_total = 0
+        iva_total = 0
+        total_general = 0
+    else:
+        ventas_por_usuario = (
+            ventas.groupby(["usuario", "correo"], as_index=False)
+            .agg({
+                "cantidad": "sum",
+                "subtotal": "sum",
+                "iva": "sum",
+                "total": "sum"
+            })
+            .sort_values("total", ascending=False)
+        )
+
+        ventas_por_producto = (
+            ventas.groupby("producto", as_index=False)
+            .agg({
+                "cantidad": "sum",
+                "subtotal": "sum",
+                "iva": "sum",
+                "total": "sum"
+            })
+            .sort_values("total", ascending=False)
+        )
+
+        ventas_por_dia = (
+            ventas.groupby("fecha", as_index=False)
+            .agg({
+                "cantidad": "sum",
+                "subtotal": "sum",
+                "iva": "sum",
+                "total": "sum"
+            })
+            .sort_values("fecha")
+        )
+
+        cantidad_total = ventas["cantidad"].sum()
+        subtotal_total = ventas["subtotal"].sum()
+        iva_total = ventas["iva"].sum()
+        total_general = ventas["total"].sum()
 
     resumen = pd.DataFrame({
         "Dato": [
             "Usuarios registrados",
+            "Productos registrados",
+            "Stock total disponible",
             "Ventas registradas",
             "Cantidad total vendida",
             "Subtotal general",
@@ -417,46 +631,15 @@ def crear_reporte_general_excel():
         ],
         "Valor": [
             len(usuarios),
+            len(productos),
+            productos["stock"].sum() if not productos.empty else 0,
             len(ventas),
-            ventas["cantidad"].sum(),
-            ventas["subtotal"].sum(),
-            ventas["iva"].sum(),
-            ventas["total"].sum()
+            cantidad_total,
+            subtotal_total,
+            iva_total,
+            total_general
         ]
     })
-
-    ventas_por_usuario = (
-        ventas.groupby(["usuario", "correo"], as_index=False)
-        .agg({
-            "cantidad": "sum",
-            "subtotal": "sum",
-            "iva": "sum",
-            "total": "sum"
-        })
-        .sort_values("total", ascending=False)
-    )
-
-    ventas_por_producto = (
-        ventas.groupby("producto", as_index=False)
-        .agg({
-            "cantidad": "sum",
-            "subtotal": "sum",
-            "iva": "sum",
-            "total": "sum"
-        })
-        .sort_values("total", ascending=False)
-    )
-
-    ventas_por_dia = (
-        ventas.groupby("fecha", as_index=False)
-        .agg({
-            "cantidad": "sum",
-            "subtotal": "sum",
-            "iva": "sum",
-            "total": "sum"
-        })
-        .sort_values("fecha")
-    )
 
     fecha_archivo = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     ruta_reporte = CARPETA_REPORTES / f"reporte_general_{fecha_archivo}.xlsx"
@@ -464,6 +647,7 @@ def crear_reporte_general_excel():
     with pd.ExcelWriter(ruta_reporte, engine="openpyxl") as writer:
         resumen.to_excel(writer, sheet_name="Resumen general", index=False)
         usuarios.to_excel(writer, sheet_name="Usuarios", index=False)
+        productos.to_excel(writer, sheet_name="Inventario", index=False)
         ventas.to_excel(writer, sheet_name="Todas las ventas", index=False)
         ventas_por_usuario.to_excel(writer, sheet_name="Ventas por usuario", index=False)
         ventas_por_producto.to_excel(writer, sheet_name="Ventas por producto", index=False)
@@ -599,34 +783,29 @@ def panel():
     usuario = buscar_usuario_por_id(usuario_id)
 
     if request.method == "POST":
-        producto = request.form.get("producto", "")
+        producto_id = request.form.get("producto_id", "")
         cantidad = request.form.get("cantidad", "")
-        precio = request.form.get("precio", "")
 
         try:
-            if not producto or not cantidad or not precio:
-                raise ValueError("Completa producto, cantidad y precio.")
+            if not producto_id or not cantidad:
+                raise ValueError("Selecciona producto y cantidad.")
 
-            if int(cantidad) <= 0:
-                raise ValueError("La cantidad debe ser mayor a 0.")
-
-            if float(precio) <= 0:
-                raise ValueError("El precio debe ser mayor a 0.")
-
-            registrar_venta(usuario_id, producto, cantidad, precio)
-            mensaje = "Venta registrada correctamente."
+            registrar_venta(usuario_id, producto_id, cantidad)
+            mensaje = "Venta registrada correctamente. El stock fue actualizado."
 
         except ValueError as problema:
             error = str(problema)
 
     ventas = obtener_ventas_usuario(usuario_id)
     resumen = obtener_resumen_usuario(usuario_id)
+    productos = obtener_productos_disponibles()
 
     return render_template(
         "panel.html",
         usuario=usuario,
         ventas=ventas,
         resumen=resumen,
+        productos=productos,
         error=error,
         mensaje=mensaje
     )
@@ -649,6 +828,47 @@ def admin():
         ventas=ventas,
         resumen_admin=resumen_admin
     )
+
+
+@app.route("/inventario", methods=["GET", "POST"])
+@admin_requerido
+def inventario():
+    error = None
+    mensaje = None
+
+    usuario_id = session["usuario_id"]
+    usuario = buscar_usuario_por_id(usuario_id)
+
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "")
+        precio = request.form.get("precio", "")
+        stock = request.form.get("stock", "")
+
+        try:
+            if not nombre or not precio or not stock:
+                raise ValueError("Completa nombre, precio y stock.")
+
+            mensaje = agregar_producto_admin(nombre, precio, stock)
+
+        except ValueError as problema:
+            error = str(problema)
+
+    productos = obtener_productos_admin()
+
+    return render_template(
+        "inventario.html",
+        usuario=usuario,
+        productos=productos,
+        error=error,
+        mensaje=mensaje
+    )
+
+
+@app.route("/eliminar-producto/<int:producto_id>")
+@admin_requerido
+def eliminar_producto(producto_id):
+    eliminar_producto_admin(producto_id)
+    return redirect(url_for("inventario"))
 
 
 @app.route("/eliminar/<int:venta_id>")
@@ -678,12 +898,14 @@ def descargar_reporte():
         usuario = buscar_usuario_por_id(usuario_id)
         ventas = obtener_ventas_usuario(usuario_id)
         resumen = obtener_resumen_usuario(usuario_id)
+        productos = obtener_productos_disponibles()
 
         return render_template(
             "panel.html",
             usuario=usuario,
             ventas=ventas,
             resumen=resumen,
+            productos=productos,
             error=str(error),
             mensaje=None
         )
