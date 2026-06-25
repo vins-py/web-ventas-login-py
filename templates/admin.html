@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Administrador | Sistema de Ventas</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+        }
+
+        .contenedor {
+            width: 95%;
+            max-width: 1250px;
+            margin: 35px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 14px;
+            box-shadow: 0 0 18px rgba(0,0,0,0.12);
+        }
+
+        h1 {
+            color: #7a1f1f;
+            text-align: center;
+        }
+
+        h2 {
+            color: #1f4e78;
+            margin-top: 35px;
+        }
+
+        .usuario {
+            text-align: center;
+            color: #444;
+            margin-bottom: 22px;
+        }
+
+        .resumen {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+            margin-top: 25px;
+        }
+
+        .tarjeta {
+            background: #fff1f1;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #e5b5b5;
+        }
+
+        .tarjeta strong {
+            display: block;
+            font-size: 18px;
+            margin-top: 6px;
+            color: #7a1f1f;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 18px;
+        }
+
+        th {
+            background: #1f4e78;
+            color: white;
+            padding: 10px;
+        }
+
+        td {
+            border: 1px solid #ccc;
+            padding: 9px;
+            text-align: center;
+        }
+
+        tr:nth-child(even) {
+            background: #f2f6fa;
+        }
+
+        .acciones {
+            margin-top: 25px;
+            text-align: right;
+        }
+
+        .boton {
+            background: #1f4e78;
+            color: white;
+            border: none;
+            padding: 11px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+            margin-left: 8px;
+        }
+
+        .boton:hover {
+            background: #163957;
+        }
+
+        .boton-reporte {
+            background: #2e7d32;
+        }
+
+        .boton-reporte:hover {
+            background: #1b5e20;
+        }
+
+        .salir {
+            background: #555;
+        }
+
+        .salir:hover {
+            background: #333;
+        }
+
+        .mensaje-admin {
+            background: #fff4cc;
+            color: #6b4d00;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 18px;
+            text-align: center;
+        }
+
+        @media (max-width: 900px) {
+            .resumen {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .acciones {
+                text-align: center;
+            }
+
+            table {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="contenedor">
+        <h1>Panel de Administrador</h1>
+
+        <div class="usuario">
+            Administrador: <strong>{{ usuario[1] }}</strong> |
+            Correo: <strong>{{ usuario[2] }}</strong>
+        </div>
+
+        <div class="mensaje-admin">
+            En este panel se pueden ver los usuarios registrados y todas las ventas del sistema.
+        </div>
+
+        <div class="resumen">
+            <div class="tarjeta">
+                Usuarios
+                <strong>{{ resumen_admin.usuarios }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Ventas
+                <strong>{{ resumen_admin.ventas }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Cantidad vendida
+                <strong>{{ resumen_admin.cantidad }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                IVA total
+                <strong>${{ "%.2f"|format(resumen_admin.iva) }}</strong>
+            </div>
+
+            <div class="tarjeta">
+                Total general
+                <strong>${{ "%.2f"|format(resumen_admin.total) }}</strong>
+            </div>
+        </div>
+
+        <div class="acciones">
+            <a class="boton boton-reporte" href="/descargar-reporte-general">
+                Descargar reporte general Excel
+            </a>
+
+            <a class="boton" href="/panel">
+                Ir a mi panel de ventas
+            </a>
+
+            <a class="boton salir" href="/logout">
+                Cerrar sesión
+            </a>
+        </div>
+
+        <h2>Usuarios registrados</h2>
+
+        {% if usuarios %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Correo</th>
+                        <th>Rol</th>
+                        <th>Fecha de registro</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for usuario_item in usuarios %}
+                        <tr>
+                            <td>{{ usuario_item[0] }}</td>
+                            <td>{{ usuario_item[1] }}</td>
+                            <td>{{ usuario_item[2] }}</td>
+                            <td>{{ usuario_item[3] }}</td>
+                            <td>{{ usuario_item[4] }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No hay usuarios registrados.</p>
+        {% endif %}
+
+        <h2>Todas las ventas del sistema</h2>
+
+        {% if ventas %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID Venta</th>
+                        <th>Usuario</th>
+                        <th>Correo</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Producto</th>
+                        <th>Cantidad</th>
+                        <th>Precio</th>
+                        <th>Subtotal</th>
+                        <th>IVA</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for venta in ventas %}
+                        <tr>
+                            <td>{{ venta[0] }}</td>
+                            <td>{{ venta[1] }}</td>
+                            <td>{{ venta[2] }}</td>
+                            <td>{{ venta[3] }}</td>
+                            <td>{{ venta[4] }}</td>
+                            <td>{{ venta[5] }}</td>
+                            <td>{{ venta[6] }}</td>
+                            <td>${{ "%.2f"|format(venta[7]) }}</td>
+                            <td>${{ "%.2f"|format(venta[8]) }}</td>
+                            <td>${{ "%.2f"|format(venta[9]) }}</td>
+                            <td>${{ "%.2f"|format(venta[10]) }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No hay ventas registradas todavía.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

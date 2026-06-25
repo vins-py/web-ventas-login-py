@@ -33,7 +33,8 @@ def crear_tablas():
             nombre TEXT NOT NULL,
             correo TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
-            fecha_registro TEXT NOT NULL
+            fecha_registro TEXT NOT NULL,
+            rol TEXT NOT NULL DEFAULT 'usuario'
         )
     """)
 
@@ -56,6 +57,26 @@ def crear_tablas():
     conexion.commit()
     conexion.close()
 
+    asegurar_columna_rol()
+
+
+def asegurar_columna_rol():
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    cursor.execute("PRAGMA table_info(usuarios)")
+    columnas = cursor.fetchall()
+    nombres_columnas = [columna[1] for columna in columnas]
+
+    if "rol" not in nombres_columnas:
+        cursor.execute("""
+            ALTER TABLE usuarios
+            ADD COLUMN rol TEXT NOT NULL DEFAULT 'usuario'
+        """)
+
+    conexion.commit()
+    conexion.close()
+
 
 def login_requerido(funcion):
     @wraps(funcion)
@@ -67,12 +88,26 @@ def login_requerido(funcion):
     return envoltura
 
 
+def admin_requerido(funcion):
+    @wraps(funcion)
+    def envoltura(*args, **kwargs):
+        if "usuario_id" not in session:
+            return redirect(url_for("login"))
+
+        if session.get("usuario_rol") != "admin":
+            return redirect(url_for("panel"))
+
+        return funcion(*args, **kwargs)
+
+    return envoltura
+
+
 def buscar_usuario_por_correo(correo):
     conexion = conectar()
     cursor = conexion.cursor()
 
     cursor.execute("""
-        SELECT id, nombre, correo, password_hash
+        SELECT id, nombre, correo, password_hash, rol
         FROM usuarios
         WHERE correo = ?
     """, (correo,))
@@ -88,7 +123,7 @@ def buscar_usuario_por_id(usuario_id):
     cursor = conexion.cursor()
 
     cursor.execute("""
-        SELECT id, nombre, correo, fecha_registro
+        SELECT id, nombre, correo, fecha_registro, rol
         FROM usuarios
         WHERE id = ?
     """, (usuario_id,))
@@ -195,6 +230,81 @@ def eliminar_venta(usuario_id, venta_id):
     conexion.close()
 
 
+def obtener_usuarios_admin():
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        SELECT id, nombre, correo, rol, fecha_registro
+        FROM usuarios
+        ORDER BY id
+    """)
+
+    usuarios = cursor.fetchall()
+    conexion.close()
+
+    return usuarios
+
+
+def obtener_ventas_admin():
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    cursor.execute("""
+        SELECT
+            ventas.id,
+            usuarios.nombre,
+            usuarios.correo,
+            ventas.fecha,
+            ventas.hora,
+            ventas.producto,
+            ventas.cantidad,
+            ventas.precio,
+            ventas.subtotal,
+            ventas.iva,
+            ventas.total
+        FROM ventas
+        INNER JOIN usuarios
+        ON ventas.usuario_id = usuarios.id
+        ORDER BY ventas.id DESC
+    """)
+
+    ventas = cursor.fetchall()
+    conexion.close()
+
+    return ventas
+
+
+def obtener_resumen_admin():
+    conexion = conectar()
+    cursor = conexion.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    total_usuarios = cursor.fetchone()[0]
+
+    cursor.execute("""
+        SELECT
+            COUNT(*),
+            COALESCE(SUM(cantidad), 0),
+            COALESCE(SUM(iva), 0),
+            COALESCE(SUM(total), 0)
+        FROM ventas
+    """)
+
+    resultado = cursor.fetchone()
+    conexion.close()
+
+    total_ventas, cantidad, iva, total = resultado
+
+    return {
+        "usuarios": total_usuarios,
+        "ventas": total_ventas,
+        "cantidad": cantidad,
+        "iva": iva,
+        "total": total
+    }
+
+
 def crear_reporte_excel(usuario_id):
     conexion = conectar()
 
@@ -255,6 +365,107 @@ def crear_reporte_excel(usuario_id):
     with pd.ExcelWriter(ruta_reporte, engine="openpyxl") as writer:
         resumen.to_excel(writer, sheet_name="Resumen", index=False)
         ventas.to_excel(writer, sheet_name="Ventas", index=False)
+        ventas_por_producto.to_excel(writer, sheet_name="Ventas por producto", index=False)
+        ventas_por_dia.to_excel(writer, sheet_name="Ventas por dia", index=False)
+
+    dar_formato_excel(ruta_reporte)
+
+    return ruta_reporte
+
+
+def crear_reporte_general_excel():
+    conexion = conectar()
+
+    usuarios = pd.read_sql_query("""
+        SELECT id, nombre, correo, rol, fecha_registro
+        FROM usuarios
+        ORDER BY id
+    """, conexion)
+
+    ventas = pd.read_sql_query("""
+        SELECT
+            ventas.id,
+            usuarios.nombre AS usuario,
+            usuarios.correo,
+            ventas.fecha,
+            ventas.hora,
+            ventas.producto,
+            ventas.cantidad,
+            ventas.precio,
+            ventas.subtotal,
+            ventas.iva,
+            ventas.total
+        FROM ventas
+        INNER JOIN usuarios
+        ON ventas.usuario_id = usuarios.id
+        ORDER BY ventas.id
+    """, conexion)
+
+    conexion.close()
+
+    if ventas.empty:
+        raise ValueError("No hay ventas registradas para generar el reporte general.")
+
+    resumen = pd.DataFrame({
+        "Dato": [
+            "Usuarios registrados",
+            "Ventas registradas",
+            "Cantidad total vendida",
+            "Subtotal general",
+            "IVA general",
+            "Total general vendido"
+        ],
+        "Valor": [
+            len(usuarios),
+            len(ventas),
+            ventas["cantidad"].sum(),
+            ventas["subtotal"].sum(),
+            ventas["iva"].sum(),
+            ventas["total"].sum()
+        ]
+    })
+
+    ventas_por_usuario = (
+        ventas.groupby(["usuario", "correo"], as_index=False)
+        .agg({
+            "cantidad": "sum",
+            "subtotal": "sum",
+            "iva": "sum",
+            "total": "sum"
+        })
+        .sort_values("total", ascending=False)
+    )
+
+    ventas_por_producto = (
+        ventas.groupby("producto", as_index=False)
+        .agg({
+            "cantidad": "sum",
+            "subtotal": "sum",
+            "iva": "sum",
+            "total": "sum"
+        })
+        .sort_values("total", ascending=False)
+    )
+
+    ventas_por_dia = (
+        ventas.groupby("fecha", as_index=False)
+        .agg({
+            "cantidad": "sum",
+            "subtotal": "sum",
+            "iva": "sum",
+            "total": "sum"
+        })
+        .sort_values("fecha")
+    )
+
+    fecha_archivo = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    ruta_reporte = CARPETA_REPORTES / f"reporte_general_{fecha_archivo}.xlsx"
+
+    with pd.ExcelWriter(ruta_reporte, engine="openpyxl") as writer:
+        resumen.to_excel(writer, sheet_name="Resumen general", index=False)
+        usuarios.to_excel(writer, sheet_name="Usuarios", index=False)
+        ventas.to_excel(writer, sheet_name="Todas las ventas", index=False)
+        ventas_por_usuario.to_excel(writer, sheet_name="Ventas por usuario", index=False)
         ventas_por_producto.to_excel(writer, sheet_name="Ventas por producto", index=False)
         ventas_por_dia.to_excel(writer, sheet_name="Ventas por dia", index=False)
 
@@ -333,8 +544,8 @@ def registro():
             cursor = conexion.cursor()
 
             cursor.execute("""
-                INSERT INTO usuarios (nombre, correo, password_hash, fecha_registro)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO usuarios (nombre, correo, password_hash, fecha_registro, rol)
+                VALUES (?, ?, ?, ?, 'usuario')
             """, (nombre, correo, password_hash, fecha_registro))
 
             conexion.commit()
@@ -361,11 +572,16 @@ def login():
         if not usuario:
             error = "Correo o contraseña incorrectos."
         else:
-            usuario_id, nombre, correo_bd, password_hash = usuario
+            usuario_id, nombre, correo_bd, password_hash, rol = usuario
 
             if check_password_hash(password_hash, password):
                 session["usuario_id"] = usuario_id
                 session["usuario_nombre"] = nombre
+                session["usuario_rol"] = rol
+
+                if rol == "admin":
+                    return redirect(url_for("admin"))
+
                 return redirect(url_for("panel"))
 
             error = "Correo o contraseña incorrectos."
@@ -416,6 +632,25 @@ def panel():
     )
 
 
+@app.route("/admin")
+@admin_requerido
+def admin():
+    usuario_id = session["usuario_id"]
+    usuario = buscar_usuario_por_id(usuario_id)
+
+    usuarios = obtener_usuarios_admin()
+    ventas = obtener_ventas_admin()
+    resumen_admin = obtener_resumen_admin()
+
+    return render_template(
+        "admin.html",
+        usuario=usuario,
+        usuarios=usuarios,
+        ventas=ventas,
+        resumen_admin=resumen_admin
+    )
+
+
 @app.route("/eliminar/<int:venta_id>")
 @login_requerido
 def eliminar(venta_id):
@@ -451,6 +686,36 @@ def descargar_reporte():
             resumen=resumen,
             error=str(error),
             mensaje=None
+        )
+
+
+@app.route("/descargar-reporte-general")
+@admin_requerido
+def descargar_reporte_general():
+    try:
+        ruta_reporte = crear_reporte_general_excel()
+
+        return send_file(
+            ruta_reporte,
+            as_attachment=True,
+            download_name=ruta_reporte.name
+        )
+
+    except Exception as error:
+        usuario_id = session["usuario_id"]
+        usuario = buscar_usuario_por_id(usuario_id)
+
+        usuarios = obtener_usuarios_admin()
+        ventas = obtener_ventas_admin()
+        resumen_admin = obtener_resumen_admin()
+
+        return render_template(
+            "admin.html",
+            usuario=usuario,
+            usuarios=usuarios,
+            ventas=ventas,
+            resumen_admin=resumen_admin,
+            error=str(error)
         )
 
 
